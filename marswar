@@ -196,22 +196,34 @@ class Launcher:
     def __init__(self, x, dx):
         self.x = x
         self.dx = dx
-   
+        self.inactive= 0
+        self.rocketnum = 15
+        self.rocketregentimer=10
+        self.assist=True
+
     def step(self, bombs):
         hit=0
         if self.x < 4:
             self.dx = 1
         elif self.x > 76:
             self.dx = -1
+        if self.inactive > 0:
+            self.inactive-=1
+        if self.rocketregentimer > 0 and self.rocketnum < 15:
+            self.rocketregentimer-=1
+        if self.rocketregentimer == 0 and self.rocketnum < 15:
+            self.rocketnum+=1
+            self.rocketregentimer=10
         self.x += self.dx
         for obj in bombs:
             if obj.y==20 and abs(self.x - obj.x) <= 2:
                 bombs.pop(bisect.bisect_left(bombs,obj))
                 hit+=1
+                self.inactive=60
         return hit
-
     def draw(self):
-        scr.addstr(20, self.x-3, " ==!== ")
+        appearance=" {0}={1}={0} ".format("$" if self.assist else "=", "O" if self.inactive else ("!" if self.rocketnum else "#"))
+        scr.addstr(20, self.x-3, appearance)
 
 def query():
     scr.nodelay(0)
@@ -306,7 +318,7 @@ def play(stdscr):
         tick = 0
         deployed = 0 #for end menu
         deaths = 0 #see above
-        assist = False # unimplemented, but still costs points
+        assists = 0 # number of assists
         deadmen = 0
         desecration = 0
         dropped = 0
@@ -323,9 +335,15 @@ def play(stdscr):
                     launcher.dx = 1
                 elif n in (119, 259, 115, 258):
                     launcher.dx = 0
-                elif n == 32:
+                elif n == 32 and rockets[launcher.x].state==0 and launcher.inactive==0 and launcher.rocketnum>0:
                     rockets[launcher.x].state = 1            
+                    launcher.rocketnum-=1
                     deployed+=1
+                if launcher.assist and any(map(lambda x: launcher.x==x.x, bombs)) and rockets[launcher.x].state==0 and launcher.inactive==0 and launcher.rocketnum>0:
+                    rockets[launcher.x].state = 1            
+                    launcher.rocketnum-=1
+                    deployed+=1
+                    assists+=1
                 scr.erase()
                 scr.addstr(0, 0, "Number of martians: " + format(martians_count, "02d"))
 
@@ -371,7 +389,7 @@ def play(stdscr):
                 "bomb":1,
                 "desc":-20,
                 "winlose":(1028,-768,-10000),
-                "chrg":-612}
+                "chrg":-4}
         values={"time":tick,
                 "mart":deaths,
                 "defl":deflect,
@@ -379,7 +397,8 @@ def play(stdscr):
                 "hits":damage,
                 "dead":deadmen,
                 "bomb":dropped,
-                "desc":desecration}
+                "desc":desecration,
+                "chrg":assists}
         bigstring="".join((
 "Battle #:          {n: > 6}\n",
 "Time spent:        {time[0]: > 6} {time[1]: > 6}\n" if values["time"]>0 else "",
@@ -387,7 +406,7 @@ def play(stdscr):
 "Bombs deflected:   {defl[0]: > 6} {defl[1]: > 6}\n" if values["defl"]>0 else "",
 "Rockets shot:      {shot[0]: > 6} {shot[1]: > 6}\n" if values["shot"]>0 else "",
 "Launcher damage:   {hits[0]: > 6} {hits[1]: > 6}\n" if values["hits"]>0 else "",
-"Assistance charge:        {chrg: > 6}\n"            if assist           else "",
+"Assistance charge:        {chrg[1]: > 6}\n"         if values["chrg"]>0 else "",
 "Personnel lost:    {dead[0]: > 6} {dead[1]: > 6}\n" if values["dead"]>0 else "",
 "Bombs dropped:     {bomb[0]: > 6} {bomb[1]: > 6}\n" if values["bomb"]>0 else "",
 "Graves desecrated: {desc[0]: > 6} {desc[1]: > 6}\n" if values["desc"]>0 else "",
@@ -395,10 +414,9 @@ def play(stdscr):
 "--------------------------------\n",
 "Total:                    {total: > 6}\n"))
         bigstring=bigstring.format(n=iterations,
-                                   chrg=coeffs["chrg"],
                                    winlose=(("Victory bonus:", "Loss penalty:", "COWARDICE PENALTY:")[winning], coeffs["winlose"][winning]),
                                    total=sum([int(values[i]*coeffs[i]) for i in values.keys()]+
-                                             [coeffs["winlose"][winning], coeffs["chrg"]*int(assist)]),
+                                             [coeffs["winlose"][winning]]),
                                    **{i:(values[i], int(coeffs[i]*values[i])) for i in values.keys()})
                                    #^dictionary unpack, a neat python trick, quite useful sometimes
         scr.erase()
