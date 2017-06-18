@@ -51,10 +51,7 @@ class Martian:
     ufo = ("       "," *<O>* "," ----- "," ***** "," ----- "," ***** "," ----- "," ***** ",
            " ----- "," ***** "," ----- ","  ***  ","* *   *","*   * *"," *   * ","   *   ","       ")
     
-    num=0
-    left=0
-    
-    def __init__(self, y, turnprob,maxperiod):
+    def __init__(self, y, turnprob, maxperiod):
         self.x = 0
         self.y = y
         self.dx = 0
@@ -63,13 +60,10 @@ class Martian:
         self.period = random.randint(2, self.maxperiod)
         self.turnprob=turnprob
         
-    def step(self, bombs, tick, numLeft, dropdiff):
+    def step(self, bombs, tick, canSpawn, dropdiff):
         dropped=0
         if self.state == 0:
-            if debug:
-                scr.addstr(26, 0, str(Martian.num)+" < "+str(numLeft))
-            if random.randint(0, 400) == 0 and Martian.num < numLeft:
-                Martian.num+=1
+            if random.randint(0, 400) == 0 and canSpawn:
                 self.state = 1
                 self.period = random.randint(2, self.maxperiod)
                 if random.randint(0, 1) == 0:
@@ -93,7 +87,6 @@ class Martian:
             self.x += self.dx
             if self.x < -1 or self.x > 80:
                 self.state = 0
-                Martian.num -= 1
         elif self.state < len(self.ufo) - 1:
             if tick % 5: #throttle animation speed
               return dropped
@@ -102,8 +95,6 @@ class Martian:
             if tick % 5:
               return dropped
             self.state = 0
-            Martian.num  -= 1
-            Martian.left -= 1
         return dropped
 
     def draw(self):
@@ -336,7 +327,7 @@ def play(stdscr):
         iterations += 1 #end menu
 
         launcher = Launcher(40, 1, 8-int(choices[2]))
-        Martian.left = [45,35,25,20,15,10][int(choices[2])]
+        martians_count = [45,35,25,20,15,10][int(choices[2])]
         men = [Man(i*5 + 6) for i in range(14)]
         rockets = [Rocket(i) for i in range(80)]
         martiancoeffs={"N":[400, 9],"O":[200,8],"K":[50,7],"S":[30,6],"W":[10,5]}[choices[0]]
@@ -353,7 +344,7 @@ def play(stdscr):
         damage = 0
         winning = 0
         try:
-            while Martian.left > 0 and any(map(lambda x: x.state==0, men)):
+            while martians_count > 0 and any(map(lambda x: x.state==0, men)):
                 n = scr.getch()
 
                 if n in (97, 260):
@@ -372,16 +363,16 @@ def play(stdscr):
                     deployed+=1
                     assists+=1
                 scr.erase()
-                scr.addstr(0, 0, "Number of martians: " + format(Martian.left, "02d"))
+                scr.addstr(0, 0, "Number of martians: " + format(martians_count, "02d"))
 
                 tick += 1
                 damage += launcher.step(bombs)
                 launcher.draw()
                 for obj in martians:
-                    dropped+=obj.step(bombs, tick, Martian.left, deployed-dropped)
+                    dropped+=obj.step(bombs, tick, sum(list(map(lambda x: int(bool(x.state)),martians)))<martians_count, deployed-dropped)
                     obj.draw()
                 if debug:
-                    scr.addstr(27,0,str(list(map(lambda x: x.state,martians))))
+                    scr.addstr(27,0,str(sum(list(map(lambda x: int(bool(x.state)),martians))))+" "+str(list(map(lambda x: x.state,martians))))
                 for obj in men:
                     obj.step()
                     obj.draw()
@@ -389,6 +380,7 @@ def play(stdscr):
                     kill = obj.step(martians, bombs)
                     if kill==1:
                         deaths += 1
+                        martians_count-=1
                     elif kill==2:
                         deflect+=1
                     obj.draw()
@@ -401,7 +393,7 @@ def play(stdscr):
                     elif boom==2:
                         desecration += 1
                     elif boom==3:
-                        pass #you don't get rewarded for martian incompetence
+                        martians_count-=1 #you don't get rewarded for martian incompetence
                     obj.draw()
                 
                 scr.refresh()
