@@ -100,7 +100,8 @@ class Martian:
         else:
             if tick % 5:
               return dropped
-            self.state == 0
+            self.state = 0
+            Martian.num -= 1
         return dropped
 
     def draw(self):
@@ -377,6 +378,8 @@ def play(stdscr):
                 for obj in martians:
                     dropped+=obj.step(bombs, tick, martians_count, deployed-dropped)
                     obj.draw()
+                if debug:
+                    scr.addstr(27,0,str(list(map(lambda x: x.state,martians))))
                 for obj in men:
                     obj.step()
                     obj.draw()
@@ -384,7 +387,6 @@ def play(stdscr):
                     kill = obj.step(martians, bombs)
                     if kill==1:
                         martians_count -= 1
-                        Martian.num -= 1
                         deaths += 1
                     elif kill==2:
                         deflect+=1
@@ -399,7 +401,6 @@ def play(stdscr):
                         desecration += 1
                     elif boom==3:
                         martians_count -= 1 #you don't get rewarded for martian incompetence
-                        Martian.num -= 1
                     obj.draw()
                 
                 scr.refresh()
