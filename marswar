@@ -34,7 +34,7 @@ import bisect  # sorted list management
 
 scr = 0 # screen
 
-debug=True
+debug=False
 
 def partial_draw(y, x, s):
     if x < 0:
@@ -290,21 +290,6 @@ def query():
 
 def play(stdscr):
     global scr
-    if "--help" in sys.argv or "-h" in sys.argv:
-        print("Usage: marswar [OPTIONS]",
-              "A quick NCurses game about fending off martians.",
-              "",
-              "-h, --help     Display this help page.",
-              "-v, --version  Print the current version of the program.", sep="\n")
-        sys.exit(0)
-    elif "--version" in sys.argv or "-v" in sys.argv:
-        print("marswar 0.2")
-        sys.exit(0)
-        
-    if any(map(operator.lt, tuple(shutil.get_terminal_size()), (80, 24))):
-        # deal with people whose terminals are too small
-        print ("Your screen size is too small. At least 80x24 is required");
-        sys.exit(1)
     scr = stdscr
     curses.noecho()
     try:
@@ -449,6 +434,26 @@ def play(stdscr):
     curses.endwin()
     return#sys.exit(0)
 
+
+
+if "--help" in sys.argv or "-h" in sys.argv:
+    print("Usage: marswar [OPTIONS]",
+          "A quick NCurses game about fending off martians.",
+          "",
+          "-h, --help     Display this help page.",
+          "-v, --version  Print the current version of the program.",
+          "-d, --debug    Enable debug putstrs below the game field. Make sure your terminal can fit them.", sep="\n")
+    sys.exit(0)
+elif "--version" in sys.argv or "-v" in sys.argv:
+    print("marswar 0.2")
+    sys.exit(0)
+    
+if any(map(operator.lt, tuple(shutil.get_terminal_size()), (80, 24))):
+    # deal with people whose terminals are too small
+    print ("Your screen size is too small. At least 80x24 is required");
+    sys.exit(1)
+
+debug = "--debug" in sys.argv or "-d" in sys.argv
 curses.wrapper(play)
 #play(curses.initscr())
 
