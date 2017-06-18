@@ -34,6 +34,8 @@ import bisect  # sorted list management
 
 scr = 0 # screen
 
+debug=True
+
 def partial_draw(y, x, s):
     if x < 0:
         if -x < len(s):
@@ -49,6 +51,8 @@ class Martian:
     ufo = ("       "," *<O>* "," ----- "," ***** "," ----- "," ***** "," ----- "," ***** ",
            " ----- "," ***** "," ----- ","  ***  ","* *   *","*   * *"," *   * ","   *   ","       ")
     
+    num=0
+    
     def __init__(self, y, turnprob,maxperiod):
         self.x = 0
         self.y = y
@@ -58,10 +62,13 @@ class Martian:
         self.period = random.randint(2, self.maxperiod)
         self.turnprob=turnprob
         
-    def step(self, bombs, tick):
+    def step(self, bombs, tick, numLeft, dropdiff):
         dropped=0
         if self.state == 0:
-            if random.randint(0, 400) == 0:
+            if debug:
+                scr.addstr(26, 0, str(Martian.num)+" < "+str(numLeft))
+            if random.randint(0, 400) == 0 and Martian.num < numLeft:
+                Martian.num+=1
                 self.state = 1
                 self.period = random.randint(2, self.maxperiod)
                 if random.randint(0, 1) == 0:
@@ -73,9 +80,11 @@ class Martian:
         elif self.state == 1:
             if tick % self.period:
               return dropped
-            if random.randint(0, 100) == 0 and self.x > -1 and self.x < 80: #check for out-of-bounds bombs
+            if random.randint(0, max(2,(100-max(0,dropdiff)*4))) == 0 and self.x > -1 and self.x < 80: #check for out-of-bounds bombs
                 bisect.insort(bombs,Bomb(self.x, self.y))
                 dropped+=1
+            if debug:
+                scr.addstr(25, 0, "Drop chance: "+str(max(2,(100-max(0,dropdiff)*4))))
             if random.randint(0, self.turnprob) == 0:
                 self.dx*=-1
                 if random.randint(0, 3) ==0:
@@ -83,6 +92,7 @@ class Martian:
             self.x += self.dx
             if self.x < -1 or self.x > 80:
                 self.state = 0
+                Martian.num-=1
         elif self.state < len(self.ufo) - 1:
             if tick % 5: #throttle animation speed
               return dropped
@@ -131,7 +141,7 @@ class Bomb:
         self.timer = 0
         self.delay = 20
                 
-    def step(self, bombs, people):
+    def step(self, bombs, people, martians):
         if self.timer:
             self.timer -= 1
             return 0
@@ -148,6 +158,11 @@ class Bomb:
                         hit=2 if obj.state == 32 else 1
                         bombs.pop(bisect.bisect_left(bombs,self))
                         break
+            for obj in martians:
+                if obj.state == 1 and self.y == obj.y and abs(self.x - obj.x) <= 2:
+                    obj.state = 2
+                    hit=3
+                    bombs.pop(bisect.bisect_left(bombs,self))
         else:
             bombs.pop(bisect.bisect_left(bombs,self))
         return hit
@@ -203,7 +218,7 @@ class Launcher:
         self.rocketcap = rocketcap
         self.rocketnum = self.rocketcap
         self.rocketregentimer=10
-        self.assist=True
+        self.assisttime=0
 
     def step(self, bombs):
         hit=0
@@ -218,6 +233,8 @@ class Launcher:
         if self.rocketregentimer == 0 and self.rocketnum < self.rocketcap:
             self.rocketnum+=1
             self.rocketregentimer=10
+        if self.assisttime > 0:
+            self.assisttime-=1
         self.x += self.dx
         for obj in bombs:
             if obj.y==20 and abs(self.x - obj.x) <= 2:
@@ -226,9 +243,10 @@ class Launcher:
                 self.inactive=60
         return hit
     def draw(self):
-        appearance=" {0}={1}={0} ".format("$" if self.assist else "=", "O" if self.inactive else ("!" if self.rocketnum else "#"))
+        appearance=" {0}={1}={0} ".format("$" if self.assisttime else "=", "O" if self.inactive else ("!" if self.rocketnum else "#"))
         scr.addstr(20, self.x-3, appearance)
-#        scr.addstr(25, 0, str(self.rocketregentimer))
+        if debug:
+            scr.addstr(24, 0, "Regen timer: "+str(self.rocketregentimer))
 
 def query():
     scr.nodelay(0)
@@ -246,7 +264,7 @@ def query():
             scr.move(cpos[0],0)
         else:
             scr.move(cpos[0]+1,0)
-    ans.append(temp)
+    ans.append(temp.upper())
     cpos=scr.getyx()
     scr.insstr("Enter your name: ")
     scr.move(cpos[0],len("Enter your name: "))
@@ -318,7 +336,7 @@ def play(stdscr):
         martians_count = [45,35,25,20,15,10][int(choices[2])]
         men = [Man(i*5 + 6) for i in range(14)]
         rockets = [Rocket(i) for i in range(80)]
-        martiancoeffs={"N":[400, 9],"O":[200,8],"K":[50,7],"S":[30,6],"W":[10,5]}[choices[0].upper()]
+        martiancoeffs={"N":[400, 9],"O":[200,8],"K":[50,7],"S":[30,6],"W":[10,5]}[choices[0]]
         martians = [Martian(*([i+2]+martiancoeffs)) for i in range(17)]
         bombs = []
         tick = 0
@@ -345,7 +363,7 @@ def play(stdscr):
                     rockets[launcher.x].state = 1            
                     launcher.rocketnum-=1
                     deployed+=1
-                if launcher.assist and any(map(lambda x: launcher.x==x.x, bombs)) and rockets[launcher.x].state==0 and launcher.inactive==0 and launcher.rocketnum>0:
+                if launcher.assisttime and any(map(lambda x: launcher.x==x.x, bombs)) and rockets[launcher.x].state==0 and launcher.inactive==0 and launcher.rocketnum>0:
                     rockets[launcher.x].state = 1            
                     launcher.rocketnum-=1
                     deployed+=1
@@ -357,7 +375,7 @@ def play(stdscr):
                 damage += launcher.step(bombs)
                 launcher.draw()
                 for obj in martians:
-                    dropped+=obj.step(bombs, tick)
+                    dropped+=obj.step(bombs, tick, martians_count, deployed-dropped)
                     obj.draw()
                 for obj in men:
                     obj.step()
@@ -366,16 +384,22 @@ def play(stdscr):
                     kill = obj.step(martians, bombs)
                     if kill==1:
                         martians_count -= 1
+                        Martian.num -= 1
                         deaths += 1
                     elif kill==2:
                         deflect+=1
                     obj.draw()
                 for obj in bombs.copy():
-                    boom=obj.step(bombs, men)
+                    boom=obj.step(bombs, men, martians)
                     if boom==1:
                         deadmen +=1
+                        if choices[0]=="W":
+                            launcher.assisttime=200
                     elif boom==2:
                         desecration += 1
+                    elif boom==3:
+                        martians_count -= 1 #you don't get rewarded for martian incompetence
+                        Martian.num -= 1
                     obj.draw()
                 
                 scr.refresh()
