@@ -49,12 +49,13 @@ class Martian:
     ufo = ("       "," *<O>* "," ----- "," ***** "," ----- "," ***** "," ----- "," ***** ",
            " ----- "," ***** "," ----- ","  ***  ","* *   *","*   * *"," *   * ","   *   ","       ")
     
-    def __init__(self, y, turnprob):
+    def __init__(self, y, turnprob,maxperiod):
         self.x = 0
         self.y = y
         self.dx = 0
         self.state = 0
-        self.period = 6
+        self.maxperiod=maxperiod
+        self.period = random.randint(2, self.maxperiod)
         self.turnprob=turnprob
         
     def step(self, bombs, tick):
@@ -62,7 +63,7 @@ class Martian:
         if self.state == 0:
             if random.randint(0, 400) == 0:
                 self.state = 1
-                self.period = random.randint(2, 10)
+                self.period = random.randint(2, self.maxperiod)
                 if random.randint(0, 1) == 0:
                     self.x = -1
                     self.dx = 1
@@ -77,11 +78,13 @@ class Martian:
                 dropped+=1
             if random.randint(0, self.turnprob) == 0:
                 self.dx*=-1
+                if random.randint(0, 3) ==0:
+                    self.period = random.randint(2, self.maxperiod)
             self.x += self.dx
             if self.x < -1 or self.x > 80:
                 self.state = 0
         elif self.state < len(self.ufo) - 1:
-            if tick % 5:
+            if tick % 5: #throttle animation speed
               return dropped
             self.state += 1
         else:
@@ -193,11 +196,12 @@ class Rocket:
             scr.addstr(self.y, self.x, "!")
 
 class Launcher:
-    def __init__(self, x, dx):
+    def __init__(self, x, dx, rocketcap):
         self.x = x
         self.dx = dx
         self.inactive= 0
-        self.rocketnum = 15
+        self.rocketcap = rocketcap
+        self.rocketnum = self.rocketcap
         self.rocketregentimer=10
         self.assist=True
 
@@ -209,9 +213,9 @@ class Launcher:
             self.dx = -1
         if self.inactive > 0:
             self.inactive-=1
-        if self.rocketregentimer > 0 and self.rocketnum < 15:
+        if self.rocketregentimer > 0 and self.rocketnum < self.rocketcap:
             self.rocketregentimer-=1
-        if self.rocketregentimer == 0 and self.rocketnum < 15:
+        if self.rocketregentimer == 0 and self.rocketnum < self.rocketcap:
             self.rocketnum+=1
             self.rocketregentimer=10
         self.x += self.dx
@@ -224,6 +228,7 @@ class Launcher:
     def draw(self):
         appearance=" {0}={1}={0} ".format("$" if self.assist else "=", "O" if self.inactive else ("!" if self.rocketnum else "#"))
         scr.addstr(20, self.x-3, appearance)
+#        scr.addstr(25, 0, str(self.rocketregentimer))
 
 def query():
     scr.nodelay(0)
@@ -309,11 +314,12 @@ def play(stdscr):
 
         iterations += 1 #end menu
 
-        launcher = Launcher(40, 1)
+        launcher = Launcher(40, 1, 8-int(choices[2]))
         martians_count = [45,35,25,20,15,10][int(choices[2])]
         men = [Man(i*5 + 6) for i in range(14)]
         rockets = [Rocket(i) for i in range(80)]
-        martians = [Martian(i+2, 50) for i in range(17)]
+        martiancoeffs={"N":[400, 9],"O":[200,8],"K":[50,7],"S":[30,6],"W":[10,5]}[choices[0].upper()]
+        martians = [Martian(*([i+2]+martiancoeffs)) for i in range(17)]
         bombs = []
         tick = 0
         deployed = 0 #for end menu
