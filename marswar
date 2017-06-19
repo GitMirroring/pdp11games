@@ -242,7 +242,7 @@ class Launcher:
         if debug:
             scr.addstr(24, 0, "Regen timer: "+str(self.rocketregentimer))
 
-def query():
+def query(scores):
     scr.nodelay(0)
     curses.echo()
     ans=[]
@@ -259,16 +259,40 @@ def query():
         else:
             scr.move(cpos[0]+1,0)
     ans.append(temp.upper())
-    cpos=scr.getyx()
-    scr.insstr("Enter your name: ")
-    scr.move(cpos[0],len("Enter your name: "))
-    temp = scr.getstr()
-    if cpos[0]>=23:
-        scr.move(0,0)
-        scr.deleteln()
-        scr.move(cpos[0],0)
-    else:
-        scr.move(cpos[0]+1,0)
+    invalid=True
+    while invalid:
+        cpos=scr.getyx()
+        scr.insstr("Enter your name: ")
+        scr.move(cpos[0],len("Enter your name: "))
+        temp = scr.getstr().decode()
+        if cpos[0]>=23:
+            scr.move(0,0)
+            scr.deleteln()
+            scr.move(cpos[0],0)
+        else:
+            scr.move(cpos[0]+1,0)
+        if temp=="":
+            sys.exit(0)
+        if temp not in scores.keys():
+                temp2=""
+                while temp2 not in list("ynYN"):
+                    scr.insstr("Are you a new player? [Y/N] ")
+                    cpos=scr.getyx()
+                    scr.move(cpos[0],len("Are you a new player? [Y/N] "))
+                    temp2 = chr(scr.getch())
+                    if cpos[0]>=23:
+                        scr.move(0,0)
+                        scr.deleteln()
+                        scr.move(cpos[0],0)
+                    else:
+                        scr.move(cpos[0]+1,0)
+                if temp2 in list("yY"):
+                    invalid = False
+                    scores[temp]=[0,0,0,0,0,0]
+                else:
+                    invalid = True
+        else:
+            invalid=False
     ans.append(temp)
     temp=""
     while temp not in list("012345"):
@@ -282,7 +306,7 @@ def query():
             scr.move(cpos[0],0)
         else:
             scr.move(cpos[0]+1,0)
-    ans.append(temp)
+    ans.append(int(temp))
     scr.nodelay(1)
     curses.noecho()
     return ans
@@ -297,9 +321,11 @@ def play(stdscr):
     except:
         pass
     iterations=0
+    scorein = os.fdopen(os.open(os.path.expanduser("~/.marswar.txt"), os.O_RDWR | os.O_CREAT, mode=0o640), "r+")
+    scores={i[0]:list(map(int,i[1:])) for i in map(lambda x: x.split(), scorein.readlines())}
     while True: 
         try:
-            choices=query()
+            choices=query(scores)
         except KeyboardInterrupt:
             break
         scr.erase()
@@ -311,8 +337,8 @@ def play(stdscr):
 
         iterations += 1 #end menu
 
-        launcher = Launcher(40, 1, 8-int(choices[2]))
-        martians_count = [45,35,25,20,15,10][int(choices[2])]
+        launcher = Launcher(40, 1, 8-choices[2])
+        martians_count = [45,35,25,20,15,10][choices[2]]
         men = [Man(i*5 + 6) for i in range(14)]
         rockets = [Rocket(i) for i in range(80)]
         martiancoeffs={"N":[400, 9],"O":[200,8],"K":[50,7],"S":[30,6],"W":[10,5]}[choices[0]]
@@ -408,6 +434,10 @@ def play(stdscr):
                 "bomb":dropped,
                 "desc":desecration,
                 "chrg":assists}
+        total=sum([int(values[i]*coeffs[i]) for i in values.keys()]+[coeffs["winlose"][winning]])
+        scores[choices[1]][choices[2]]=max(scores[choices[1]][choices[2]],total)
+        winner=max(scores,key=lambda x: scores[x])
+        winscore=scores[winner][choices[2]]
         bigstring="".join((
 "Battle #:          {n: > 6}\n",
 "Time spent:        {time[0]: > 6} {time[1]: > 6}\n" if values["time"]>0 else "",
@@ -421,16 +451,26 @@ def play(stdscr):
 "Graves desecrated: {desc[0]: > 6} {desc[1]: > 6}\n" if values["desc"]>0 else "",
 "{winlose[0]: <18}        {winlose[1]: > 6}\n",
 "--------------------------------\n",
-"Total:                    {total: > 6}\n"))
+"Total:                    {total: > 6}\n",
+"\n",
+"Your best result in this level is {highscore}\n",
+"The absolute highest score was set by {winname}\n",
+"with a score of {bestscore}\n"))
         bigstring=bigstring.format(n=iterations,
                                    winlose=(("Victory bonus:", "Loss penalty:", "COWARDICE PENALTY:")[winning], coeffs["winlose"][winning]),
-                                   total=sum([int(values[i]*coeffs[i]) for i in values.keys()]+
-                                             [coeffs["winlose"][winning]]),
+                                   total=total,
+                                   highscore=scores[choices[1]][choices[2]],
+                                   winname=winner,
+                                   bestscore=winscore,
                                    **{i:(values[i], int(coeffs[i]*values[i])) for i in values.keys()})
                                    #^dictionary unpack, a neat python trick, quite useful sometimes
         scr.erase()
         scr.addstr(5,0,bigstring)
         scr.refresh()
+    scorein.seek(0)
+    scorein.truncate(0)
+    for i in scores:
+        scorein.write(i+" "+" ".join(map(str,scores[i]))+"\n")
     curses.endwin()
     return#sys.exit(0)
 
@@ -438,11 +478,12 @@ def play(stdscr):
 
 if "--help" in sys.argv or "-h" in sys.argv:
     print("Usage: marswar [OPTIONS]",
-          "A quick NCurses game about fending off martians.",
+          "A quick game about fending off martians. The controls are arrow keys and space.",
           "",
           "-h, --help     Display this help page.",
           "-v, --version  Print the current version of the program.",
-          "-d, --debug    Enable debug putstrs below the game field. Make sure your terminal can fit them.", sep="\n")
+          "-d, --debug    Enable debug putstrs below the game field. Make sure your terminal",
+          "               can fit them.", sep="\n")
     sys.exit(0)
 elif "--version" in sys.argv or "-v" in sys.argv:
     print("marswar 0.2")
