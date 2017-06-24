@@ -196,7 +196,7 @@ def play():
               "-v, --version  Print the current version of the program.", sep="\n")
         sys.exit(0)
     elif "--version" in sys.argv or "-v" in sys.argv:
-        print("xonix 0.5")
+        print("xonix 1.0")
         sys.exit(0)
         
     if any(map(operator.lt, tuple(shutil.get_terminal_size()), (80, 24))):
