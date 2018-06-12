@@ -32,6 +32,33 @@ import bisect  # sorted list management
 # Port to Windows. Windows has no curses but access to Windows console
 # can be done using ctypes interface to the native DLLs.
 
+# The following ascii art is often attributed to David Palmer
+# but he denies his authorship.
+art = r"""
+                                          _____________
+   Mars War                            __/_|_|_|_|_|_|_\__
+                                      /                   \    .
+                 .       ____________/  ____               \   :
+                 :    __/_|_|_|_|_|_(  |    |               )  |
+                 |   /               \ | () |()  ()  ()  ()/   *
+                 *  /  ____           \|____|_____________/
+    .              (  |    |            \_______________/
+    :               \ | () |()  ()  ()    \___________/
+    |                \|____|____________ /   \______/     .
+    *                  \_______________/       \  /       :
+          3         .    \___________/         (__)       |    .
+            3       :       \______/           /  \       *    :
+             3      |         \  /            /    \           |
+              3     *         (__)           /      \          *
+        ,,     3              /  \          /        \
+      w`\v',___n___          /    \        /          \
+      v\`|Y/      /\        /      \      /            \
+      `-Y/-'_____/  \      /        \    /              \
+       `|-'      |  |     /          \  /                \
+________|_|______|__|____/____________\/__________________\__
+
+"""[1:]
+
 scr = 0 # screen
 
 debug=False
@@ -242,15 +269,19 @@ class Launcher:
         if debug:
             scr.addstr(24, 0, "Regen timer: "+str(self.rocketregentimer))
 
+def ask_and_move(s):
+    scr.insstr(s)
+    cpos = scr.getyx()
+    scr.move(cpos[0], len(s))
+    return cpos
+
 def query(scores):
     scr.nodelay(0)
     curses.echo()
     ans=[]
     temp=""
     while temp not in list("nokswNOKSW"):
-        scr.insstr("Choose your game type [N,O,K,S,W]: ")
-        cpos=scr.getyx()
-        scr.move(cpos[0],len("Choose your game type [N,O,K,S,W]: "))
+        cpos = ask_and_move("Choose your game type [N,O,K,S,W]: ")
         temp = chr(scr.getch())
         if cpos[0]>=23:
             scr.move(0,0)
@@ -261,9 +292,7 @@ def query(scores):
     ans.append(temp.upper())
     invalid=True
     while invalid:
-        cpos=scr.getyx()
-        scr.insstr("Enter your name: ")
-        scr.move(cpos[0],len("Enter your name: "))
+        cpos = ask_and_move("Enter your name: ")
         temp = scr.getstr().decode()
         if cpos[0]>=23:
             scr.move(0,0)
@@ -276,9 +305,7 @@ def query(scores):
         if temp not in scores.keys():
                 temp2=""
                 while temp2 not in list("ynYN"):
-                    scr.insstr("Are you a new player? [Y/N] ")
-                    cpos=scr.getyx()
-                    scr.move(cpos[0],len("Are you a new player? [Y/N] "))
+                    cpos = ask_and_move("Are you a new player? [Y/N] ")
                     temp2 = chr(scr.getch())
                     if cpos[0]>=23:
                         scr.move(0,0)
@@ -296,9 +323,7 @@ def query(scores):
     ans.append(temp)
     temp=""
     while temp not in list("012345"):
-        scr.insstr("Choose your level [0-5]:")
-        cpos=scr.getyx()
-        scr.move(cpos[0],len("Choose your level [0-5]:"))
+        cpos = ask_and_move("Choose your level [0-5]:")
         temp = chr(scr.getch())
         if cpos[0]>=20:
             scr.move(0,0)
@@ -321,6 +346,9 @@ def play(stdscr):
     except:
         pass
     iterations=0
+    for i, s in enumerate(art.split("\n")):   
+        scr.addstr(i, 0, s)
+
     scorein = os.fdopen(os.open(os.path.expanduser("~/.marswar.txt"), os.O_RDWR | os.O_CREAT, mode=0o640), "r+")
     scores={i[0]:list(map(int,i[1:])) for i in map(lambda x: x.split(), scorein.readlines())}
     while True: 
