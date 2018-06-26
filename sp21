@@ -334,7 +334,10 @@ def write_in(a, x, y, score):
                 acc = acc[0:-1]
                 a.addstr(y,x+len(acc)," ")
         elif ord(c) == 10:
-            return acc
+            if acc:
+                return acc
+            else:
+                continue
         else:
             acc = acc + c
         a.addstr(y, 0, " " * 18)
