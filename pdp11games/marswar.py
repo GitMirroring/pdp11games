@@ -504,25 +504,28 @@ def play(stdscr):
 
 
 
-if "--help" in sys.argv or "-h" in sys.argv:
-    print("Usage: marswar [OPTIONS]",
-          "A quick game about fending off martians. The controls are arrow keys and space.",
-          "",
-          "-h, --help     Display this help page.",
-          "-v, --version  Print the current version of the program.",
-          "-d, --debug    Enable debug putstrs below the game field. Make sure your terminal",
-          "               can fit them.", sep="\n")
-    sys.exit(0)
-elif "--version" in sys.argv or "-v" in sys.argv:
-    print("marswar 1.0")
-    sys.exit(0)
-    
-if any(map(operator.lt, tuple(shutil.get_terminal_size()), (80, 24))):
-    # deal with people whose terminals are too small
-    print ("Your screen size is too small. At least 80x24 is required");
-    sys.exit(1)
+def main():
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("Usage: marswar [OPTIONS]",
+              "A quick game about fending off martians. The controls are arrow keys and space.",
+              "",
+              "-h, --help     Display this help page.",
+              "-v, --version  Print the current version of the program.",
+              "-d, --debug    Enable debug putstrs below the game field. Make sure your terminal",
+              "               can fit them.", sep="\n")
+        sys.exit(0)
+    elif "--version" in sys.argv or "-v" in sys.argv:
+        print("marswar 1.0")
+        sys.exit(0)
+        
+    if any(map(operator.lt, tuple(shutil.get_terminal_size()), (80, 24))):
+        # deal with people whose terminals are too small
+        print ("Your screen size is too small. At least 80x24 is required");
+        sys.exit(1)
 
-debug = "--debug" in sys.argv or "-d" in sys.argv
-curses.wrapper(play)
-#play(curses.initscr())
+    debug = "--debug" in sys.argv or "-d" in sys.argv
+    curses.wrapper(play)
+    #play(curses.initscr())
 
+if __name__=="__main__":
+    main()

@@ -331,8 +331,11 @@ def play():
     curses.endwin()
     sys.exit(0)
 
-try:  # the entire program is in a try-except statement to handle keyboard interrupts by closing curses
-    play()
-except KeyboardInterrupt:
-    curses.endwin()
+def main():
+    try:  # the entire program is in a try-except statement to handle keyboard interrupts by closing curses
+        play()
+    except KeyboardInterrupt:
+        curses.endwin()
 
+if __name__=="__main__":
+    main()
