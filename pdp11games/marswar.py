@@ -15,12 +15,14 @@
 #
 # Copyright 2016 Peter Cherepanov
 
-import curses
 import random
 import sys
 import os
-import shutil  # get terminal size.
-import operator
+
+if os.name == "nt":
+    import windows_console as curses
+else:
+    import curses
 import bisect  # sorted list management
 
 #
@@ -29,8 +31,7 @@ import bisect  # sorted list management
 
 # Test on different terminals -- works on xterm, cygwin, screen.
 # Test on real terminals.
-# Port to Windows. Windows has no curses but access to Windows console
-# can be done using ctypes interface to the native DLLs.
+# Windows uses the local ctypes console backend; Unix uses curses.
 
 # The following ascii art is often attributed to David Palmer
 # but he denies his authorship.
@@ -131,8 +132,8 @@ class Martian:
 class Man:  
     #       0    1    2     3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30   31   32 
     m  =("  O    +    O    =    +    O    =    +    O    =    +    O    =    +    O    =    +                                          . . .. . .. . .. . .. . .. . .  +       "
-        ," /V\ \ V /I V I/ V \--V--\ V /I V I/ V \--V--\ V /I V I/ V \--V--\ V /I V I/ V \       O                       ...  ...  ...  ...  ...  ...        I    I    I       "
-        ," _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_ / V \ _-_  _-_   .    .    .    .    .    .             /~\  /~\  /~\  /~\  /~\      ")
+        ,r" /V\ \ V /I V I/ V \--V--\ V /I V I/ V \--V--\ V /I V I/ V \--V--\ V /I V I/ V \       O                       ...  ...  ...  ...  ...  ...        I    I    I       "
+        ,r" _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_  _M_ / V \ _-_  _-_   .    .    .    .    .    .             /~\  /~\  /~\  /~\  /~\      ")
      #    123451234512345123451234512345123451234512345123451234512345123451234512345123451234512345123451234512345123451234512345123451234512345123451234512345123451234512345
     
     def __init__(self, x):
@@ -301,7 +302,7 @@ def query(scores):
         else:
             scr.move(cpos[0]+1,0)
         if temp=="":
-            sys.exit(0)
+            return None
         if temp not in scores.keys():
                 temp2=""
                 while temp2 not in list("ynYN"):
@@ -340,6 +341,9 @@ def query(scores):
 def play(stdscr):
     global scr
     scr = stdscr
+    height, width = scr.getmaxyx()
+    if width < 80 or height < (28 if debug else 24):
+        raise curses.error("Console must be at least 80 columns by " + str(28 if debug else 24) + " rows.")
     curses.noecho()
     try:
         curses.curs_set(0)
@@ -349,11 +353,13 @@ def play(stdscr):
     for i, s in enumerate(art.split("\n")):   
         scr.addstr(i, 0, s)
 
-    scorein = os.fdopen(os.open(os.path.expanduser("~/.marswar.txt"), os.O_RDWR | os.O_CREAT, mode=0o640), "r+")
+    scorein = os.fdopen(os.open(os.path.expanduser("~/.marswar.txt"), os.O_RDWR | os.O_CREAT, mode=0o640), "r+", encoding="utf-8")
     scores={i[0]:list(map(int,i[1:])) for i in map(lambda x: x.split(), scorein.readlines())}
     while True: 
         try:
             choices=query(scores)
+            if choices is None:
+                break
         except KeyboardInterrupt:
             break
         scr.erase()
@@ -499,12 +505,13 @@ def play(stdscr):
     scorein.truncate(0)
     for i in scores:
         scorein.write(i+" "+" ".join(map(str,scores[i]))+"\n")
-    curses.endwin()
-    return#sys.exit(0)
+    scorein.close()
+    return 0
 
 
 
 def main():
+    global debug
     if "--help" in sys.argv or "-h" in sys.argv:
         print("Usage: marswar [OPTIONS]",
               "A quick game about fending off martians. The controls are arrow keys and space.",
@@ -518,14 +525,16 @@ def main():
         print("marswar 1.0")
         sys.exit(0)
         
-    if any(map(operator.lt, tuple(shutil.get_terminal_size()), (80, 24))):
-        # deal with people whose terminals are too small
-        print ("Your screen size is too small. At least 80x24 is required");
-        sys.exit(1)
-
     debug = "--debug" in sys.argv or "-d" in sys.argv
-    curses.wrapper(play)
-    #play(curses.initscr())
+    if os.name == "nt":
+        curses.Screen.height = 28 if debug else 24
+    try:
+        return curses.wrapper(play)
+    except KeyboardInterrupt:
+        return 130
+    except (curses.error, OSError) as exc:
+        print("Mars War: " + str(exc), file=sys.stderr)
+        return 1
 
 if __name__=="__main__":
-    main()
+    sys.exit(main())

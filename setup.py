@@ -6,7 +6,7 @@ with open("README.rst", "r") as fh:
 
 setuptools.setup(
     name="pdp11games",
-    version="1.0",
+    version="1.1",
     author="Peter Cherepanov",
     author_email="mathmoth@mathmoth.org",
     description="Reimplementations of old PDP-11 console games",

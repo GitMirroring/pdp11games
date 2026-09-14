@@ -15,11 +15,14 @@
 #
 # Copyright 2015 Peter Cherepanov
 
-import curses
 import random
 import sys
 import os
-import shutil  # get terminal size.
+
+if os.name == "nt":
+    import windows_console as curses
+else:
+    import curses
 
 # A clone of SP21.SAV Pac-man rewritten in Python 3 using ncurses.
 #
@@ -34,8 +37,7 @@ import shutil  # get terminal size.
 
 # Test on different terminals -- works on xterm, cygwin, screen.
 # Test on real terminals.
-# Port to Windows. Windows has no curses but access to Windows console
-# can be done using ctypes interface to the native DLLs.
+# Windows uses the local ctypes console backend; Unix uses curses.
 
 mazes = [[
          "+-----------------------------------------------------------------------------+ ",
@@ -296,28 +298,14 @@ def show_lives(x):
         a.addstr(line, 79, c)
         line += 1 if line != 9 else 4
 
-def getwch(a):  # get wide char, for unicode support on scoreboard
-    acc = []
-    c = 256  # placeholder value
-    while c > 255:  # while c is not a real character
-        c = a.getch()
-        if c == 263 or c == 127:  # handle enter press
-            return chr(c)
-    acc.append(c)
-    cnt = 0
-    if (c & 0xE0) == 0xC0:
-        cnt = 1
-    elif (c & 0xF0) == 0xE0:
-        cnt = 2
-    elif (c & 0xF8) == 0xF0:
-        cnt = 3
-    elif (c & 0xFC) == 0xF8:
-        cnt = 4
-    elif (c & 0xFE) == 0xFC:
-        cnt = 5
-    for i in range(cnt):
-        acc.append(a.getch())
-    return bytes(acc).decode("utf-8");  
+def getwch(a):
+    # Both backends provide decoded Unicode; arrows are integer key codes.
+    while True:
+        char = a.get_wch()
+        if isinstance(char, str):
+            return char
+        if char == curses.KEY_BACKSPACE:
+            return "\x7f"
 
 def write_in(a, x, y, score):
     acc = ""
@@ -329,7 +317,7 @@ def write_in(a, x, y, score):
     a.refresh()
     while True:
         c = getwch(a)
-        if ord(c) == 263 or ord(c) == 127:
+        if c in ("\x7f", "\b"):
             if len(acc):
                 acc = acc[0:-1]
                 a.addstr(y,x+len(acc)," ")
@@ -339,7 +327,8 @@ def write_in(a, x, y, score):
             else:
                 continue
         else:
-            acc = acc + c
+            if c.isprintable() and len(acc) < 12:
+                acc = acc + c
         a.addstr(y, 0, " " * 18)
         a.addstr(11, 40, "ENTER YOUR NAME")
         a.addstr(y, 20 - len(str(score)), str(score))
@@ -350,7 +339,7 @@ def write_in(a, x, y, score):
 
 def pac_hall(score):
     global a
-    scorein = os.fdopen(os.open(os.path.expanduser("~/.sp21.txt"), os.O_RDWR | os.O_CREAT, mode=0o640), "r+")  # if there is no file, make one
+    scorein = os.fdopen(os.open(os.path.expanduser("~/.sp21.txt"), os.O_RDWR | os.O_CREAT, mode=0o640), "r+", encoding="utf-8")  # if there is no file, make one
     scorelist = scorein.readlines()[:20]  # scoreboard only shows top 20. may as well be efficient
     minval = min(map(lambda x: int(x.split(" ", 1)[0]), scorelist)) if len(scorelist) else 0  # handle empty scoreboard
     winning = ((len(scorelist) < 20 and score != -1) or score > minval) and "--debug" not in sys.argv  # make this use debug variable latter
@@ -414,19 +403,23 @@ A port of the Pacman game for the PDP-11/RT-11.
     elif "--version" in sys.argv or "-v" in sys.argv:
         print("sp21 1.0")
         sys.exit(0)
+    if os.name == "nt":
+        curses.Screen.height = 27 if "--debug" in sys.argv else 24
+    return curses.wrapper(run_game)
+
+
+def run_game(screen):
+    global a, maze, walls, score, combo, t, pac, g1, g2, g3, g4
+    a = screen
     debug = "--debug" in sys.argv
     timestep = 20
     onestep = False
-    s = shutil.get_terminal_size()
-    a = curses.initscr()
+    height, width = a.getmaxyx()
+    if width < 80 or height < (27 if debug else 24):
+        raise curses.error("Console must be at least 80 columns by " + str(27 if debug else 24) + " rows.")
     curses.noecho()
-    try:
-        curses.curs_set(1)
-    except:
-        pass
     if not pac_hall(-1):  # placeholder score
-        curses.endwin()
-        sys.exit(0)
+        return 0
     while True:  # this loop is for the ONCE AGAIN ? prompt
         t = 0
         level = -1  # this is to get it to play the level load animation and recalculate the dots
@@ -456,21 +449,9 @@ A port of the Pacman game for the PDP-11/RT-11.
         dots = 0
         q = None
         while True:  # this loop is the game internals
-            s = shutil.get_terminal_size()
-            if s[0] < 80 or s[1] < 24:  # deal with people whose terminals are too small
-                while s[0] < 80 or s[1] < 24:
-                    a.erase()
-                    a.addstr(
-                        0, 0, "Your screen is too small for this program"[:s[0]])
-                    if s[1] > 2:
-                        a.addstr(1, 0, "80x24 is the minimum screen size required"[
-                                 :s[0]])  # this breaks with ludicrously small terminal sizes
-                    a.refresh()
-                    curses.napms(100)
-                    s = shutil.get_terminal_size()
-                else:
-                    curses.endwin()
-                    a = curses.initscr()
+            height, width = a.getmaxyx()
+            if width < 80 or height < 24:
+                raise curses.error("Console must be at least 80x24. Resize and restart.")
 
             while True:  # read all the queued button presses and parse them.
                          # this made more sense when the timestep wasn't 20ms
@@ -497,7 +478,7 @@ A port of the Pacman game for the PDP-11/RT-11.
                 elif n == 100: # d
                     n = 261
 
-                if n in [258, 259, 260, 261]:  # if n is an arrow key
+                if maze and n in [258, 259, 260, 261]:  # if n is an arrow key
                     if n - 258 == 0 and (maze[pac.y + 1][pac.x] in walls or maze[pac.y + 1][pac.x - 1] in walls or maze[pac.y + 1][pac.x + 1] in walls):
                         q = 0  # if you cannot move in that direction, queue that movement
                     elif n - 258 == 1 and (maze[pac.y - 1][pac.x] in walls or maze[pac.y - 1][pac.x - 1] in walls or maze[pac.y - 1][pac.x + 1] in walls):
@@ -665,14 +646,16 @@ A port of the Pacman game for the PDP-11/RT-11.
                                     # also: the timestep is a quarter of the time per ghost-move. this is so that power pelleted pacman can move at 3 steps per character
         a.erase()  # remember the loop which handled ONCE AGAIN ? This code runs once the main game loop is broken out of. if you agree to continue, the loop loops and a new game is started
         if not pac_hall(score):  # if player answered no to ONCE AGAIN ?
-            curses.endwin()
-            sys.exit(0)
+            return 0
 
 def main():
     try:  # the entire program is in a try-except statement to handle keyboard interrupts by closing curses
-        play()
+        return play()
     except KeyboardInterrupt:
-        curses.endwin()
+        return 130
+    except (curses.error, OSError) as exc:
+        print("SP21: " + str(exc), file=sys.stderr)
+        return 1
 
 if __name__=="__main__":
-    main()
+    sys.exit(main())

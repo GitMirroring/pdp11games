@@ -15,12 +15,14 @@
 #
 # Copyright 2016 Peter Cherepanov
 
-import curses
 import random
 import sys
 import os
-import shutil  # get terminal size.
-import operator
+
+if os.name == "nt":
+    import windows_console as curses
+else:
+    import curses
 
 # A clone of XONIX.SAV rewritten in Python 3 using ncurses.
 #
@@ -28,8 +30,8 @@ import operator
 #
 # Test on different terminals -- works on xterm, cygwin, screen.
 # Test on real terminals.
-# Port to Windows. Windows has no curses but access to Windows console
-# can be done using ctypes interface to the native DLLs.
+# Windows uses windows_console.py: ctypes bindings to native console APIs.
+# Linux and other Unix-like systems use the standard curses module.
 
 sys.setrecursionlimit(1500)
 
@@ -199,17 +201,21 @@ def play():
         print("xonix 1.0")
         sys.exit(0)
         
-    if any(map(operator.lt, tuple(shutil.get_terminal_size()), (80, 24))):
-        # deal with people whose terminals are too small
-        print ("Your screen size is too small. At least 80x24 is required");
-        sys.exit(1)
+    return curses.wrapper(run_game)
 
-    scr = curses.initscr()
-    curses.noecho()
-    try:
-        curses.curs_set(0)
-    except:
-        pass
+
+def run_game(screen):
+    global scr
+    scr = screen
+    height, width = scr.getmaxyx()
+    if width < 80 or height < 24:
+        raise curses.error("Your screen is too small. At least 80x24 is required.")
+    # The Windows backend hides its private screen buffer's cursor on entry.
+    if os.name != "nt":
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
 
     best_result = 0
     your_result = 0
@@ -267,13 +273,13 @@ def play():
                 n = scr.getch()
 
                 # wasd --> arrows
-                if n in (119, 259):   # w, up
+                if n in (ord("w"), ord("W"), curses.KEY_UP):   # w, up
                     pac.gdir = 3
-                elif n in (97, 260):  # a, left
+                elif n in (ord("a"), ord("A"), curses.KEY_LEFT):  # a, left
                     pac.gdir = 2
-                elif n in (115, 258): # s, down
+                elif n in (ord("s"), ord("S"), curses.KEY_DOWN): # s, down
                     pac.gdir = 4
-                elif n in (100, 261): # d, right
+                elif n in (ord("d"), ord("D"), curses.KEY_RIGHT): # d, right
                     pac.gdir = 1
                 eaten = pac.step()
                 pac.draw(scr)
@@ -328,14 +334,16 @@ def play():
                         ghosts += [Ghost(random.randint(30, 50), 22, 1 ,1)]
                     scr.addstr(23, 76, format(time,'2'))
                 tick += 1
-    curses.endwin()
-    sys.exit(0)
+    return 0
 
 def main():
-    try:  # the entire program is in a try-except statement to handle keyboard interrupts by closing curses
-        play()
+    try:
+        return play()
     except KeyboardInterrupt:
-        curses.endwin()
+        return 130
+    except curses.error as exc:
+        print("Xonix: " + str(exc), file=sys.stderr)
+        return 1
 
 if __name__=="__main__":
-    main()
+    sys.exit(main())

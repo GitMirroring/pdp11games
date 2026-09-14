@@ -3,7 +3,7 @@ Super-Pacman (sp21), Mars (marswar) and Xonix (xonix) have been implemented
 so far.
 
 Any contributions to the project are always welcome. Please direct your
-questions, comments or patches to Peter Cherepanov <sphinx.pinastri@gmail.com>
+questions, comments or patches to Alex Cherepanov <alex@coscript.biz>
 
 The goal of sp21 is to collect the all dots in the maze and avoid ghosts.
 The game is controlled with the arrow keys.
